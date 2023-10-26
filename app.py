@@ -9,6 +9,40 @@ app = Flask(__name__)
 def hello_world():
   return 'Hi!'
 
+# Ruta para buscar la ubicación de una ciudad en la API de Nominatim
+@app.route('/search_city')
+def search_city():
+  print("ga")
+  # Obtén el valor del parámetro 'city' de la URL
+  city = request.args.get('city')
+
+  # Verifica si se proporcionó el parámetro 'city'
+  if not city:
+    return jsonify({'error': 'El parámetro "city" es obligatorio'}), 400
+
+  # URL de la API de Nominatim
+  api_url = 'https://nominatim.openstreetmap.org/search'
+
+  # Parámetros de la solicitud
+  params = {
+    'q': city,
+    'format': 'json'
+  }
+
+  # Realiza la solicitud a la API de Nominatim
+  response = requests.get(api_url, params=params)
+  # Verifica si la solicitud fue exitosa
+  if response.status_code == 200:
+    data = response.json()
+    result = {
+    "latitude": data[0]['lat'],
+    "longitude": data[0]['lon']
+    }   
+
+    return jsonify(result)
+  else:
+    return jsonify({'error': 'Error al realizar la solicitud a la API'}), 500
+
 @app.route('/get_tomorrow_temperature', methods=['GET'])
 def get_tomorrow_temperature():
     latitude = request.args.get('latitude')
@@ -58,40 +92,53 @@ def get_next_7d_temperature():
         return jsonify(temperature_data)
     else:
         return jsonify({'error': 'Failed to fetch data from Open Meteo API'}), response.status_code
+  
+@app.route('/get_restaurants')
+def get_restaurants():
+  # Obtén las coordenadas de latitud y longitud de los parámetros en la solicitud
+  latitude = float(request.args.get('latitude'))
+  longitude = float(request.args.get('longitude'))
 
+  # Construir la URL de la API con los valores de latitud y longitud
+  url = f"https://api.openstreetmap.org/api/0.6/map?bbox={longitude - 0.01},{latitude - 0.01},{longitude},{latitude}"
+  print(url)
 
-# Ruta para buscar la ubicación de una ciudad en la API de Nominatim
-@app.route('/search_city')
-def search_city():
-  # Obtén el valor del parámetro 'city' de la URL
-  city = request.args.get('city')
+  # Realizar la solicitud a la API
+  response = requests.get(url)
 
-  # Verifica si se proporcionó el parámetro 'city'
-  if not city:
-    return jsonify({'error': 'El parámetro "city" es obligatorio'}), 400
-
-  # URL de la API de Nominatim
-  api_url = 'https://nominatim.openstreetmap.org/search'
-
-  # Parámetros de la solicitud
-  params = {
-    'q': city,
-    'format': 'json'
-  }
-
-  # Realiza la solicitud a la API de Nominatim
-  response = requests.get(api_url, params=params)
-  # Verifica si la solicitud fue exitosa
+  # Verificar si la solicitud fue exitosa
   if response.status_code == 200:
-    data = response.json()
-    result = {
-    "lat": data[0]['lat'],
-    "lon": data[0]['lon']
-    }   
+    # Parsea el contenido XML de la respuesta
+    root = ET.fromstring(response.text)
 
-    return jsonify(result)
+    # Lista para almacenar los nombres de los restaurantes
+    nombres_de_restaurantes = []
+
+    # Itera a través de los elementos "way" en el XML
+    for way in root.findall(".//way"):
+      amenity_tag = way.find(".//tag[@k='amenity'][@v='restaurant']")
+      name_tag = way.find(".//tag[@k='name']")
+
+      # Filtra los elementos que cumplen con las condiciones
+      if amenity_tag is not None and name_tag is not None:
+        nombres_de_restaurantes.append(name_tag.attrib['v'])
+
+    for node in root.findall(".//node"):
+      amenity_tag = node.find(".//tag[@k='amenity'][@v='restaurant']")
+      name_tag = node.find(".//tag[@k='name']")
+
+      # Filtra los elementos que cumplen con las condiciones
+      if amenity_tag is not None and name_tag is not None:
+        nombres_de_restaurantes.append(name_tag.attrib['v'])
+
+    # Convierte la lista de nombres a formato JSON y devuelve como respuesta
+    if nombres_de_restaurantes:
+      return jsonify(nombres_de_restaurantes)
+    else:
+      return "No se encontraron nombres de restaurantes que cumplan con los criterios.", 200
+
   else:
-    return jsonify({'error': 'Error al realizar la solicitud a la API'}), 500
+    return "Error al obtener el mapa geoespacial.", 500
 
 @app.route('/api/v1/ciudad/<string:city_name>/clima/<string:time_parameter>', methods=['GET'])
 def get_city_weather(city_name, time_parameter):
