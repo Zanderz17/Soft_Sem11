@@ -63,7 +63,6 @@ def get_next_7d_temperature():
 # Ruta para buscar la ubicación de una ciudad en la API de Nominatim
 @app.route('/search_city')
 def search_city():
-  print("ga")
   # Obtén el valor del parámetro 'city' de la URL
   city = request.args.get('city')
 
@@ -93,6 +92,28 @@ def search_city():
     return jsonify(result)
   else:
     return jsonify({'error': 'Error al realizar la solicitud a la API'}), 500
+
+@app.route('/api/v1/ciudad/<string:city_name>/clima/<string:time_parameter>', methods=['GET'])
+def get_city_weather(city_name, time_parameter):
+    # Call /search_city to get the latitude and longitude
+    response = requests.get(f'http://127.0.0.1:5000/search_city?city={city_name}')
+
+    if response.status_code != 200:
+        return jsonify({'error': 'Failed to retrieve city coordinates'}), response.status_code
+
+    city_data = response.json()
+    latitude = city_data['lat']
+    longitude = city_data['lon']
+
+    # Determine which endpoint to call based on the time parameter
+    if time_parameter == 'manhana':
+        response2 = requests.get(f'http://127.0.0.1:5000/get_tomorrow_temperature?latitude={latitude}&longitude={longitude}')
+        return jsonify(response2.json())
+    elif time_parameter == '7dias':
+        response2 = requests.get(f'http://127.0.0.1:5000/get_next_7d_temperature?latitude={latitude}&longitude={longitude}')
+        return jsonify(response2.json())
+    else:
+        return jsonify({'error': 'Invalid time parameter'}), 400
 
 if __name__ == '__main__':
   app.run(debug=True)
