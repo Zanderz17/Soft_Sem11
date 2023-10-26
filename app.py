@@ -90,8 +90,8 @@ def get_temperature():
     else:
         return jsonify({'error': 'Failed to fetch data from Open Meteo API'}), response.status_code
 
-@app.route('/obtener_mapa')
-def obtener_mapa():
+@app.route('/get_restaurants')
+def get_restaurants():
   # Obtén las coordenadas de latitud y longitud de los parámetros en la solicitud
   latitude = float(request.args.get('latitude'))
   longitude = float(request.args.get('longitude'))
