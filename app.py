@@ -12,7 +12,6 @@ def hello_world():
 # Ruta para buscar la ubicación de una ciudad en la API de Nominatim
 @app.route('/search_city')
 def search_city():
-  print("ga")
   # Obtén el valor del parámetro 'city' de la URL
   city = request.args.get('city')
 
@@ -101,7 +100,6 @@ def get_restaurants():
 
   # Construir la URL de la API con los valores de latitud y longitud
   url = f"https://api.openstreetmap.org/api/0.6/map?bbox={longitude - 0.01},{latitude - 0.01},{longitude},{latitude}"
-  print(url)
 
   # Realizar la solicitud a la API
   response = requests.get(url)
@@ -149,18 +147,67 @@ def get_city_weather(city_name, time_parameter):
         return jsonify({'error': 'Failed to retrieve city coordinates'}), response.status_code
 
     city_data = response.json()
-    latitude = city_data['lat']
-    longitude = city_data['lon']
+    latitude = city_data.get('latitude')  # Use .get() to avoid KeyError
+    longitude = city_data.get('longitude')  # Use .get() to avoid KeyError
 
-    # Determine which endpoint to call based on the time parameter
+    # Call the appropriate endpoint based on the time parameter
     if time_parameter == 'manhana':
         response2 = requests.get(f'http://127.0.0.1:5000/get_tomorrow_temperature?latitude={latitude}&longitude={longitude}')
-        return jsonify(response2.json())
     elif time_parameter == '7dias':
         response2 = requests.get(f'http://127.0.0.1:5000/get_next_7d_temperature?latitude={latitude}&longitude={longitude}')
-        return jsonify(response2.json())
     else:
         return jsonify({'error': 'Invalid time parameter'}), 400
+
+    # Check the 'Accept' header to determine the response format
+    accept_header = request.headers.get('Accept')
+
+    if accept_header and 'text/xml' in accept_header:
+        # Return the response in XML format
+        # You can format the XML response here
+        xml_response = "<weather>"
+        for data in response2.json():
+            xml_response += f"<data>{data}</data>"
+        xml_response += "</weather>"
+        return xml_response, 200, {'Content-Type': 'text/xml'}
+    else:
+        # Return the response in JSON format by default
+        return jsonify(response2.json())
+
+@app.route('/api/v1/ciudad/<string:city_name>/restaurantes', methods=['GET'])
+def get_city_restaurants(city_name):
+    # Check the 'Accept' header of the request
+    accept_header = request.headers.get('Accept')
+
+    # Call /search_city to get the latitude and longitude
+    response = requests.get(f'http://127.0.0.1:5000/search_city?city={city_name}')
+
+    if response.status_code != 200:
+        return jsonify({'error': 'Failed to retrieve city coordinates'}), response.status_code
+
+    city_data = response.json()
+    latitude = city_data.get('latitude')  # Use .get() to avoid KeyError
+    longitude = city_data.get('longitude')  # Use .get() to avoid KeyError
+
+    # Call /get_restaurants to get the restaurants associated to latitude and longitude
+    response2 = requests.get(f'http://127.0.0.1:5000/get_restaurants?latitude={latitude}&longitude={longitude}')
+
+    # Determine the response format based on the 'Accept' header
+    if 'text/xml' in accept_header:
+        # Return the response in XML format
+        # You can format the XML response here
+        xml_response = "<restaurants>"
+        for restaurant in response2.json():
+            xml_response += f"<restaurant>{restaurant}</restaurant>"
+        xml_response += "</restaurants>"
+        return xml_response, 200, {'Content-Type': 'text/xml'}
+
+    elif 'application/json' in accept_header:
+        # Return the response in JSON format
+        return jsonify(response2.json())
+
+    else:
+        # Handle unsupported 'Accept' header
+        return jsonify({'error': 'Unsupported Accept header'}), 415  # 415 Unsupported Media Type
 
 if __name__ == '__main__':
   app.run(debug=True)
